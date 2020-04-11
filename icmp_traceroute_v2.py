@@ -41,16 +41,31 @@ def checksum(string):
     return answer
 
 def build_packet():
-# In the sendOnePing() method of the ICMP Ping exercise ,firstly the header of our
+#In the sendOnePing() method of the ICMP Ping exercise ,firstly the header of our
 # packet to be sent was made, secondly the checksum was appended to the header and
 # then finally the complete packet was sent to the destination.
 
 # Make the header in a similar way to the ping exercise.
 # Append checksum to the header.
+    # Header is type (8), code (8), checksum (16), id (16), sequence (16)
+    myChecksum = 0
+    ID = os.getpid() & 0xFFFF
+    # Make a dummy header with a 0 checksum
+    # struct -- Interpret strings as packed binary data
+    header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, myChecksum, ID, 1)
+    data = struct.pack("d", time.time())
+    # Calculate the checksum on the data and the dummy header.
+    myChecksum = checksum(header + data)
 
-# Don’t send the packet yet , just return the final packet in this function.
+    # Get the right checksum, and put in the header
 
-# So the function ending should look like this
+    if sys.platform == 'darwin':
+        # Convert 16-bit integers from host to network  byte order
+        myChecksum = htons(myChecksum) & 0xffff
+    else:
+        myChecksum = htons(myChecksum)
+
+    header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, myChecksum, ID, 1)
 
     packet = header + data
     return packet
@@ -62,6 +77,8 @@ def get_route(hostname):
             destAddr = gethostbyname(hostname)
             #Fill in start
             # Make a raw socket named mySocket
+            icmp = getprotobyname("icmp")
+            mySocket = socket(AF_INET, SOCK_RAW, icmp)
             #Fill in end
 
             mySocket.setsockopt(IPPROTO_IP, IP_TTL, struct.pack('I', ttl))
@@ -87,6 +104,11 @@ def get_route(hostname):
             else:
                 #Fill in start
                 #Fetch the icmp type from the IP packet
+
+                icmp_header = recvPacket[20:28]
+
+                types, icmp_code, icmp_checksum, icmp_id, icmp_seq = struct.unpack("bbHHh", icmp_header)
+
                 #Fill in end
                 if types == 11:
                     bytes = struct.calcsize("d")
